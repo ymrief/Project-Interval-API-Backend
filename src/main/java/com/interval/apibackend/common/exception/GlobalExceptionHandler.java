@@ -1,7 +1,9 @@
 package com.interval.apibackend.common.exception;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +31,6 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
 import lombok.extern.slf4j.Slf4j;
-
 
 /**
  * Memetakan semua exception ke format error spec.
@@ -96,7 +97,7 @@ public class GlobalExceptionHandler {
         // Nilai field salah (enum tidak dikenal, format tanggal/jam salah) -> 422 per field.
         if (ex.getCause() instanceof InvalidFormatException ife) {
             return build(HttpStatus.UNPROCESSABLE_ENTITY, VALIDATION_FAILED,
-                    Map.of(jsonPath(ife), "Invalid value"));
+                    Map.of(jsonPath(ife), invalidValueMessage(ife)));
         }
         // JSON rusak, body kosong, tipe struktur salah -> 400.
         return build(HttpStatus.BAD_REQUEST, "Malformed JSON request", null);
@@ -166,6 +167,18 @@ public class GlobalExceptionHandler {
             }
         }
         return last;
+    }
+
+    /** Enum salah -> "Value must be one of: TABLET, CAPSULE, ..."; selain itu pesan generik. */
+    private static String invalidValueMessage(InvalidFormatException ex) {
+        Class<?> target = ex.getTargetType();
+        if (target != null && target.isEnum()) {
+            String values = Arrays.stream(target.getEnumConstants())
+                    .map(constant -> ((Enum<?>) constant).name())
+                    .collect(Collectors.joining(", "));
+            return "Value must be one of: " + values;
+        }
+        return "Invalid value";
     }
 
     /** Mengubah path Jackson menjadi "times[0].scheduledTime". */

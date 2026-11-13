@@ -35,6 +35,8 @@ Query Parameters :
 
 Urutan: `createdAt` terbaru lebih dulu.
 
+Validasi: `page` negatif atau `size` di luar 1–100 menghasilkan `422` (`errors.page` / `errors.size`); tipe salah, misalnya `page=abc`, menghasilkan `400`.
+
 Response Body (Success, 200) :
 ```json
 {
@@ -113,7 +115,7 @@ Response Body (Failed, 422) :
 }
 ```
 
-Validasi: `name` wajib dan tidak boleh kosong, maksimal 150 karakter. `dosageForm` harus salah satu nilai enum (jika salah: `422` dengan `errors.dosageForm`). `userId` tidak dikirim dari client; backend mengambilnya dari token.
+Validasi: `name` wajib dan tidak boleh kosong, maksimal 150 karakter. `dosage` maksimal 100 karakter. `instructions` dan `notes` maksimal 5000 karakter. `imageUrl` maksimal 500 karakter dan harus diawali `http://` atau `https://`. `dosageForm` harus salah satu nilai enum, ditulis huruf besar persis (jika salah: `422` dengan `errors.dosageForm`). Teks kosong atau hanya spasi pada field opsional disimpan sebagai `null`, dan `name` disimpan dalam keadaan di-trim. `userId` tidak dikirim dari client; backend mengambilnya dari token.
 
 ## 3. Get Medication Detail
 
@@ -202,13 +204,14 @@ Response Body (Failed, 422) :
   "success": false,
   "message": "Validation failed",
   "errors": {
-    "dosageForm": "Dosage form must be TABLET, CAPSULE, SYRUP, DROPS, or OTHER"
+    "dosageForm": "Value must be one of: TABLET, CAPSULE, SYRUP, DROPS, OTHER"
   }
 }
 ```
 
 Aturan:
 - PATCH hanya mengubah field yang dikirim. Backend memeriksa kepemilikan lewat `userId` dari token.
+- Field `dosage`, `instructions`, `notes`, dan `imageUrl` yang dikirim `null` (atau teks kosong) **dikosongkan**; yang tidak dikirim tidak diubah. Untuk `name`, `dosageForm`, dan `isActive`, `null` disamakan dengan tidak dikirim, sedangkan `name` kosong atau hanya spasi menghasilkan `422`.
 - Mengubah `isActive` menjadi `false` menghentikan pengingat: occurrence `PENDING` mendatang milik obat ini dibatalkan (`CANCELLED`). Mengubah kembali menjadi `true` membuat occurrence mendatang lagi sesuai jadwal aktif.
 - Mengubah `name` tidak mengubah riwayat yang sudah ada (log menyimpan nama obat saat kejadian).
 

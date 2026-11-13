@@ -72,7 +72,7 @@ class GlobalExceptionHandlerTest {
         mvc.perform(post("/t/body").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"x\",\"color\":\"PURPLE\"}"))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.errors.color").value("Invalid value"));
+                .andExpect(jsonPath("$.errors.color").value("Value must be one of: RED, BLUE"));
     }
 
     @Test
