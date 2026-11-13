@@ -47,7 +47,20 @@ Timezone jadwal mengikuti timezone pengguna (`/api/users/me`), jadi tidak ada fi
 | `times` | Minimal 1, maksimal 50 baris. Kombinasi (`dayOfWeek`, `scheduledTime`) tidak boleh duplikat |
 | Obat | Harus milik pengguna, belum dihapus, dan `isActive = true` untuk membuat jadwal baru |
 
-Pelanggaran semua aturan di atas dikembalikan sebagai `422`.
+Pelanggaran semua aturan di atas dikembalikan sebagai `422` dengan `message` **`Invalid schedule configuration`**, dan `errors` berisi **seluruh** kesalahan sekaligus. Kunci `errors` adalah nama field, atau `times[i].namaField` untuk kesalahan pada jam ke-`i` (mulai dari 0):
+
+| Kunci | Contoh pesan |
+|---|---|
+| `frequencyType`, `doseUnit`, `startDate` | `Frequency type is required` |
+| `doseQuantity` | `Dose quantity must be greater than 0`, `Dose quantity must have at most 2 decimal places` |
+| `endDate` | `End date must not be earlier than start date` |
+| `intervalDays` | `Interval days must be at least 1 for INTERVAL schedules` |
+| `times` | `At least one time is required`, `At most 50 times are allowed`, `Duplicate times are not allowed` |
+| `times[i].scheduledTime` | `Scheduled time is required` |
+| `times[i].dayOfWeek` | `Day of week is required for WEEKLY schedules`, `Day of week must be between 1 and 7` |
+| `medicationId` | `Medication is not active` |
+
+Nilai yang tidak terbaca (enum salah, jam seperti `25:00:00`) tetap `422` dengan `message` `Validation failed`, contohnya `errors.frequencyType` = `Value must be one of: DAILY, WEEKLY, INTERVAL`.
 
 ## 1. Get Schedule List
 
@@ -261,7 +274,11 @@ Response Body (Failed, 422) :
 Aturan:
 - Validasi dilakukan terhadap **hasil gabungan** data lama dan field yang dikirim (misalnya mengubah `frequencyType` ke `WEEKLY` tanpa mengirim `times` baru → `422`).
 - Jika `times` dikirim, daftar tersebut **menggantikan seluruh** jam yang ada. Baris yang sama persis (hari dan jam) mempertahankan `id`-nya.
-- `startDate` tidak dapat diubah. Untuk memulai ulang dari tanggal lain, hapus jadwal dan buat yang baru.
+- `startDate` tidak dapat diubah. Mengirim nilai yang berbeda menghasilkan `422` (`errors.startDate`); mengirim nilai yang sama diabaikan. Untuk memulai ulang dari tanggal lain, hapus jadwal dan buat yang baru.
+- `endDate` dan `intervalDays` yang dikirim `null` **dikosongkan**; yang tidak dikirim tidak diubah. Untuk field lain, `null` disamakan dengan tidak dikirim.
+- Mengubah `frequencyType` menjadi bukan `INTERVAL` mengosongkan `intervalDays` otomatis.
+- Mengubah `frequencyType` **ke atau dari** `WEEKLY` mewajibkan `times` baru (karena `dayOfWeek` hanya bermakna pada WEEKLY); jika tidak, `422` pada `errors.times`.
+- PATCH yang tidak mengubah apa pun (termasuk mengirim nilai yang sama) tidak menulis ke database dan tidak memicu pembuatan ulang occurrence.
 
 **Kebijakan perubahan terhadap occurrence:**
 
@@ -290,4 +307,4 @@ Response Body (Failed, 404) :
 }
 ```
 
-Aturan: soft delete (`deleted_at` diisi, `isActive = false`). Occurrence `PENDING` mendatang menjadi `CANCELLED`; riwayat tetap utuh.
+Aturan: soft delete (`deleted_at` diisi, `isActive = false`). Occurrence `PENDING` mendatang menjadi `CANCELLED`; riwayat tetap utuh. Jadwal juga ikut di-soft-delete otomatis saat obat induknya dihapus.
