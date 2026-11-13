@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Database menyimpan UTC (Instant). API mengeluarkan waktu dengan offset
@@ -17,6 +18,12 @@ public final class TimeUtils {
     /** Instant (UTC) -> OffsetDateTime dengan offset timezone pengguna, mis. 2026-11-11T08:00:00+07:00. */
     public static OffsetDateTime toUserTime(Instant instant, ZoneId zone) {
         return instant == null ? null : instant.atZone(zone).toOffsetDateTime();
+    }
+
+    /** Instant (UTC) -> String format ISO 8601 sesuai timezone pengguna (mis. "2026-11-11T08:00:00+07:00"). */
+    public static String format(Instant instant, ZoneId zone) {
+        OffsetDateTime userTime = toUserTime(instant, zone);
+        return userTime == null ? null : userTime.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 
     /** Awal hari lokal (inklusif) sebagai Instant. Pakai untuk batas bawah query: scheduledAt >= ... */

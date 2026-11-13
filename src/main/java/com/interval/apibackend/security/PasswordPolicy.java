@@ -26,4 +26,10 @@ public final class PasswordPolicy {
             throw new BusinessRuleException("Validation failed", field, LENGTH_MESSAGE);
         }
     }
+
+    public static void requireValid(String field, String password, String message) {
+        if (password.length() < MIN_LENGTH || exceedsMaxBytes(password)) {
+            throw new BusinessRuleException("Validation failed", field, message);
+        }
+    }
 }

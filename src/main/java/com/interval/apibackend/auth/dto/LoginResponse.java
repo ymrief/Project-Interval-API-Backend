@@ -1,6 +1,7 @@
 package com.interval.apibackend.auth.dto;
 
 import com.interval.apibackend.auth.service.TokenService;
+import com.interval.apibackend.user.dto.UserSummary;
 import com.interval.apibackend.user.entity.User;
 
 public record LoginResponse(

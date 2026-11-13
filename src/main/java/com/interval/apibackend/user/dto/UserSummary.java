@@ -1,4 +1,4 @@
-package com.interval.apibackend.auth.dto;
+package com.interval.apibackend.user.dto;
 
 import com.interval.apibackend.user.entity.User;
 
