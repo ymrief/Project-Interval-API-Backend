@@ -49,10 +49,12 @@ Request Header :
 - `Authorization: Bearer <accessToken>` (Mandatory)
 
 Query Parameters :
-- `from`, `to` (optional, tanggal lokal pengguna, inklusif). Jika kosong: 30 hari terakhir sampai hari ini
+- `from`, `to` (optional, tanggal lokal pengguna, inklusif, format `YYYY-MM-DD`). Jika kosong: 30 hari terakhir **sampai hari ini**, sehingga occurrence mendatang tidak ikut; kirim `to` untuk melihatnya
 - `status` (optional)
 - `medicationId` (optional)
 - `page` (optional, default 0), `size` (optional, default 20, maksimum 100)
+
+Tipe parameter yang salah (tanggal bukan `YYYY-MM-DD`, `status` di luar enum, `medicationId` bukan UUID) menghasilkan `400`. `page` negatif atau `size` di luar 1–100 menghasilkan `422`.
 
 Urutan: `scheduledAt` terbaru lebih dulu.
 
@@ -195,7 +197,10 @@ Response Body (Failed, 422) :
 | `CANCELLED` | ✗ | ✗ | ✗ |
 
 Aturan:
-- Client **tidak boleh** mengirim `MISSED` atau `CANCELLED`; keduanya hanya diatur backend. Nilai di luar enum juga `422`.
+- Client **tidak boleh** mengirim `MISSED` atau `CANCELLED` (`errors.status`: `Status MISSED cannot be set manually`); keduanya hanya diatur backend. Nilai di luar enum juga `422` (`Value must be one of: ...`), begitu pula `status` yang tidak dikirim (`Status is required`).
+- Mengirim status yang **sama** dengan status saat ini diizinkan (idempotent, aman untuk retry) dan tidak mengubah `actionAt`; hanya `notes` yang diperbarui.
+- `notes`: tidak dikirim = tidak diubah, `null` atau teks kosong = dikosongkan, maksimal 5000 karakter.
+- Log milik pengguna lain tidak ditemukan (`404`). Log obat yang sudah dihapus tetap dapat dilihat dan diubah (riwayat).
 - Kembali ke `PENDING` hanya diizinkan selama waktu sekarang belum melewati batas toleransi `MISSED` (`scheduledAt` + toleransi). Jika sudah lewat, tolak dengan `422`.
 - Backend mengisi `actionAt` dengan waktu sekarang saat status berubah ke `TAKEN` atau `SKIPPED`, dan mengosongkannya saat kembali ke `PENDING`.
 - Client tidak boleh mengubah `scheduleId`, `scheduleTimeId`, `scheduledAt`, atau snapshot dosis.
