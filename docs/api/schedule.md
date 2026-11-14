@@ -286,8 +286,8 @@ Aturan:
 |---|---|
 | `TAKEN`, `SKIPPED`, `MISSED` | Tidak pernah diubah (riwayat) |
 | `PENDING` dengan `scheduledAt` sudah lewat | Dibiarkan; job `MISSED` yang menanganinya |
-| `PENDING` dengan `scheduledAt` di masa depan | Diubah menjadi `CANCELLED`, lalu dibuat ulang sesuai jadwal baru |
-| `CANCELLED` | Tidak diubah |
+| `PENDING` dengan `scheduledAt` di masa depan | **Diselaraskan**: yang masih sesuai jadwal baru dipertahankan (id tetap, dosis dan nama diperbarui), yang tidak sesuai menjadi `CANCELLED`, yang belum ada dibuat |
+| `CANCELLED` di masa depan | Dihidupkan kembali menjadi `PENDING` jika sesuai lagi dengan jadwal (misalnya obat diaktifkan kembali); selain itu tidak diubah |
 
 ## 5. Delete Schedule
 

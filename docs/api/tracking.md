@@ -16,6 +16,17 @@ Status yang diperbolehkan: `PENDING`, `TAKEN`, `SKIPPED`, `MISSED`, `CANCELLED`.
 | `MISSED` | Job backend | `PENDING` yang melewati batas toleransi (default 60 menit setelah `scheduledAt`, dapat dikonfigurasi) |
 | `CANCELLED` | Backend | Dibatalkan karena jadwal/obat diubah, dijeda, atau dihapus |
 
+## Pembuatan occurrence
+
+Log `PENDING` dibuat otomatis oleh backend, bukan oleh client.
+
+- **Jendela (horizon):** occurrence dibuat untuk 48 jam ke depan (`interval.occurrence.horizon`). Job berkala (default tiap jam) menjaga jendela ini tetap bergulir.
+- **Tidak ada backfill:** occurrence tidak dibuat untuk waktu yang sudah lewat. Jadwal yang dibuat pukul 17:00 dengan jam 08:00 tidak menghasilkan log untuk 08:00 hari itu.
+- **Jam dinding:** jam jadwal dibaca di timezone pengguna lalu disimpan sebagai UTC. Pada hari DST, jam yang tidak ada digeser maju dan jam ganda memakai offset yang lebih awal.
+- **INTERVAL:** dihitung dari `startDate` (acuan tetap), bukan dari hari ini.
+- **Penyelarasan:** setiap perubahan (jadwal dibuat/diubah/dihapus, obat dijeda/dilanjutkan/dihapus, timezone berubah) menjalankan penyelarasan yang idempotent. Log `TAKEN`, `SKIPPED`, dan `MISSED` tidak pernah disentuh.
+- **MISSED:** job berkala (default tiap menit) mengubah `PENDING` menjadi `MISSED` jika `scheduledAt` lebih tua dari batas toleransi (`interval.occurrence.missed-after`, default 60 menit; perbandingan ketat).
+
 ## Bentuk objek Medication Log
 
 | Field | Keterangan |
