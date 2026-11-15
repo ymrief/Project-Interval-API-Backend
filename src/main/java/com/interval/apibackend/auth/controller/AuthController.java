@@ -4,6 +4,7 @@ import com.interval.apibackend.auth.dto.*;
 import com.interval.apibackend.auth.service.AuthService;
 import com.interval.apibackend.common.response.ApiResponse;
 import com.interval.apibackend.security.CurrentUser;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,8 +30,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.success("Login successful", authService.login(request));
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+                                            HttpServletRequest httpRequest) {
+        // Di belakang reverse proxy, atur server.forward-headers-strategy=native agar getRemoteAddr()
+        // berisi IP klien sebenarnya (bukan IP proxy).
+        return ApiResponse.success("Login successful", authService.login(request, httpRequest.getRemoteAddr()));
     }
 
     @PostMapping("/refresh")

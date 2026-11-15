@@ -40,6 +40,8 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/refresh").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // health check untuk Docker/orkestrator; endpoint actuator lain tidak dibuka
+                        .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e

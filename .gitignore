@@ -42,3 +42,6 @@ build/
 
 # Other local configuration
 application-*.local.properties
+
+# Firebase / Secret files folder
+secrets/

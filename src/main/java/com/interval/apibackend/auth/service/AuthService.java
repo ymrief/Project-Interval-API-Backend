@@ -26,6 +26,7 @@ public class AuthService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final TokenService tokenService;
     private final PasswordEncoder passwordEncoder;
+    private final LoginRateLimiter loginRateLimiter;
 
     /** Hash tiruan agar login dengan email tidak dikenal sama lambatnya dengan password salah. */
     private final String dummyPasswordHash;
@@ -33,11 +34,13 @@ public class AuthService {
     public AuthService(UserRepository userRepository,
                        NotificationPreferenceRepository preferenceRepository,
                        TokenService tokenService,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder,
+                       LoginRateLimiter loginRateLimiter) {
         this.userRepository = userRepository;
         this.preferenceRepository = preferenceRepository;
         this.tokenService = tokenService;
         this.passwordEncoder = passwordEncoder;
+        this.loginRateLimiter = loginRateLimiter;
         this.dummyPasswordHash = passwordEncoder.encode("dummy-password-for-timing");
     }
 
@@ -66,17 +69,25 @@ public class AuthService {
         return new RegisterResponse(user.getId(), user.getFullName(), user.getEmail(), user.getTimezone());
     }
 
-    public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(normalizeEmail(request.email())).orElse(null);
+    public LoginResponse login(LoginRequest request, String clientIp) {
+        String email = normalizeEmail(request.email());
+
+        // Diperiksa SEBELUM verifikasi password: yang diblokir tidak mendapat kesempatan mencoba, tidak membuang
+        // CPU BCrypt, dan jawabannya sama untuk email terdaftar maupun tidak (tidak membocorkan keberadaan akun).
+        loginRateLimiter.checkAllowed(email, clientIp);
+
+        User user = userRepository.findByEmail(email).orElse(null);
 
         // Selalu jalankan satu verifikasi BCrypt, walau user tidak ada (anti user-enumeration via timing).
         boolean passwordOk = !PasswordPolicy.exceedsMaxBytes(request.password())
                 && passwordEncoder.matches(request.password(),
-                        user != null ? user.getPasswordHash() : dummyPasswordHash);
+                user != null ? user.getPasswordHash() : dummyPasswordHash);
 
         if (user == null || !passwordOk) {
+            loginRateLimiter.recordFailure(email, clientIp);
             throw new UnauthorizedException("Email or password is incorrect");
         }
+        loginRateLimiter.recordSuccess(email);
         if (!user.isActive()) {
             throw new ForbiddenException("Account is deactivated");
         }

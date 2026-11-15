@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -24,13 +25,13 @@ import org.springframework.context.MessageSourceResolvable;
 import org.springframework.validation.FieldError;
 
 import tools.jackson.databind.DatabindException;
-import tools.jackson.databind.exc.InvalidFormatException;
 import com.interval.apibackend.common.response.ApiErrorResponse;
 
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.exc.InvalidFormatException;
 
 /**
  * Memetakan semua exception ke format error spec.
@@ -50,7 +51,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiErrorResponse> handleApiException(ApiException ex) {
-        return build(ex.getStatus(), ex.getMessage(), ex.getErrors());
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.getStatus());
+        if (ex instanceof TooManyRequestsException tooMany) {
+            response.header(HttpHeaders.RETRY_AFTER, String.valueOf(tooMany.getRetryAfterSeconds()));
+        }
+        return response.body(ApiErrorResponse.of(ex.getMessage(), ex.getErrors()));
     }
 
     // ---------- validasi (422) ----------

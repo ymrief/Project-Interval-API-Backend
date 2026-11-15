@@ -1,0 +1,48 @@
+# Menjalankan aplikasi + MySQL. Salin .env.example menjadi .env dan isi nilainya terlebih dulu.
+#   docker compose up --build
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-interval_db}
+      MYSQL_USER: ${DB_USERNAME:-interval}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?isi DB_PASSWORD di .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?isi MYSQL_ROOT_PASSWORD di .env}
+    # Aplikasi mengandalkan UTC dan utf8mb4 (lihat V1__init_schema.sql)
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+00:00
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # allowPublicKeyRetrieval dibutuhkan MySQL 8 (caching_sha2_password) tanpa SSL; aman di jaringan internal compose
+      DB_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE:-interval_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: ${DB_USERNAME:-interval}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?isi JWT_SECRET di .env (minimal 32 karakter)}
+      FCM_CREDENTIALS_PATH: /secrets/firebase-service-account.json
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+    volumes:
+      # Berkas service account Firebase; TIDAK masuk image dan TIDAK di-commit
+      - ./secrets:/secrets:ro
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
