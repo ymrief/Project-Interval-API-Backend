@@ -104,7 +104,7 @@ Response Body (Failed, 422) :
   "success": false,
   "message": "Validation failed",
   "errors": {
-    "platform": "Platform must be ANDROID, IOS, or WEB"
+    "platform": "Value must be one of: ANDROID, IOS, WEB"
   }
 }
 ```
@@ -113,7 +113,8 @@ Aturan:
 - `fcmToken` wajib (maksimal 512 karakter), `platform` wajib enum, `deviceName` opsional (maksimal 100).
 - Bersifat **upsert**: jika `fcmToken` sudah terdaftar, baris yang ada dipindahkan ke pengguna saat ini, diaktifkan kembali, dan `last_seen_at` diperbarui (satu perangkat fisik bisa berganti akun).
 - Client memanggil endpoint ini setelah login dan setiap kali FCM menerbitkan token baru.
-- Response `201` untuk perangkat baru dan `200` (dengan format yang sama) untuk token yang sudah terdaftar.
+- Response `201` (`Device registered successfully`) untuk perangkat baru dan `200` (`Device updated successfully`, bentuk data sama) untuk token yang sudah terdaftar.
+- `fcmToken` tidak pernah dikembalikan oleh API: itu kredensial perangkat. `deviceName` yang tidak dikirim tidak mengubah nama yang tersimpan.
 
 ## 4. Remove Device
 
@@ -146,6 +147,8 @@ Query Parameters :
 - `page` (optional, default 0), `size` (optional, default 20, maksimum 100)
 - `deliveryStatus` (optional: `QUEUED`, `SENT`, `FAILED`)
 
+Nilai `deliveryStatus` di luar enum menghasilkan `400`; `page` negatif atau `size` di luar 1–100 menghasilkan `422`.
+
 Urutan: `createdAt` terbaru lebih dulu.
 
 Response Body (Success, 200) :
@@ -177,9 +180,16 @@ Catatan: endpoint membaca tabel `notification_logs` yang kini memiliki `user_id`
 
 ## Aturan pengiriman (backend)
 
-1. Scheduler berjalan tiap menit dan mencari `medication_logs` berstatus `PENDING` yang waktunya jatuh dalam jendela berikutnya.
-2. Notifikasi dilewati jika `notificationsEnabled = false`.
-3. Untuk `reminderBeforeMinutes > 0`, kirim `PRE_REMINDER` pada `scheduledAt - reminderBeforeMinutes`, lalu `MEDICATION_REMINDER` tepat pada `scheduledAt`.
-4. Setiap percobaan kirim membuat satu baris `notification_logs` per perangkat aktif (`QUEUED` → `SENT` atau `FAILED`). Constraint `uq_notification_once` mencegah kiriman ganda.
-5. Jika FCM menjawab token tidak valid atau tidak terdaftar, perangkat dinonaktifkan (`is_active = false`).
-6. Nilai `soundEnabled` dikirim sebagai bagian dari payload notifikasi.
+Job berjalan tiap menit (`interval.notification.dispatch-interval`) dan memproses occurrence `PENDING`:
+
+1. Notifikasi hanya untuk pengguna dengan `notificationsEnabled = true`.
+2. **`MEDICATION_REMINDER`** dikirim jika `scheduledAt` berada dalam rentang `[sekarang - batas MISSED, sekarang]` (batas MISSED default 60 menit). Batas bawah mencegah pengingat basi bila job sempat berhenti lama.
+3. **`PRE_REMINDER`** hanya jika `reminderBeforeMinutes > 0` dan dosis tinggal kurang dari atau sama dengan `reminderBeforeMinutes` menit lagi. Jika waktu dosis sudah tiba atau lewat, pengingat dini dilewati.
+4. Satu percobaan kirim = satu baris `notification_logs` per (occurrence, perangkat aktif, tipe). Baris dicatat `QUEUED` **sebelum** mengirim, lalu menjadi `SENT` atau `FAILED`. `uq_notification_once` menjamin tidak ada kiriman ganda, termasuk bila aplikasi berjalan di beberapa instance.
+5. Percobaan yang `FAILED` **tidak diulang otomatis**. Baris `QUEUED` yang tertinggal karena aplikasi mati di tengah pengiriman juga tidak diulang.
+6. Jika FCM menjawab token tidak valid (`UNREGISTERED` atau `SENDER_ID_MISMATCH`), perangkat dinonaktifkan (`isActive = false`). Perangkat aktif kembali saat aplikasi mendaftarkan token yang sama lagi lewat `POST /api/devices`. Kegagalan lain (mis. layanan sedang bermasalah) tidak menonaktifkan perangkat.
+7. `soundEnabled` dikirim sebagai bagian payload (`data.sound`) dan memengaruhi suara notifikasi Android/iOS.
+8. Teks notifikasi berbahasa Indonesia. Payload `data` berisi `type`, `medicationLogId`, `scheduledAt` (UTC), dan `sound`, agar aplikasi dapat langsung membuka log terkait.
+9. `MISSED_ALERT` tersedia sebagai tipe tetapi **belum dikirim** oleh backend.
+
+Mode pengembangan: bila `interval.notification.fcm.enabled=false` (default), push hanya dicatat di log dan dianggap `SENT`, **tanpa** benar-benar dikirim. Di production wajib `true` dengan `interval.notification.fcm.credentials-path` menunjuk berkas service account Firebase.
